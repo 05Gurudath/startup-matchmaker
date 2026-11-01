@@ -1,0 +1,28 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Generated application data
+chroma_db/
+uploads/
+extracted_text.txt
+
+# Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Build and cache files
+dist/
+build/
+*.log
+
+# Editor files
+.vscode/
