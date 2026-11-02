@@ -186,6 +186,19 @@ def get_collection():
     )
 
 
+def get_next_version(cursor, startup_id):
+    """Return v1.0 for a startup's first deck, v2.0 for the second, etc."""
+    cursor.execute(
+        "SELECT COUNT(*) AS total FROM pitch_decks WHERE startup_id = %s",
+        (startup_id,)
+    )
+
+    row = cursor.fetchone()
+    total = row["total"] if isinstance(row, dict) else row[0]
+
+    return f"v{total + 1}.0"
+
+
 def process_pitch_deck(pdf_path, startup_id):
     connection = get_db_connection()
     cursor = connection.cursor(dictionary=True)
@@ -225,6 +238,8 @@ def process_pitch_deck(pdf_path, startup_id):
         file_path = Path(pdf_path)
         file_name = file_path.name
 
+        version = get_next_version(cursor, startup_id)
+
         cursor.execute(
             """
             INSERT INTO pitch_decks
@@ -236,7 +251,7 @@ def process_pitch_deck(pdf_path, startup_id):
                 startup_id,
                 file_name,
                 "PDF",
-                "v1.0",
+                version,
                 "Analyzed"
             )
         )
@@ -293,6 +308,7 @@ def process_pitch_deck(pdf_path, startup_id):
 
     except Exception:
         connection.rollback()
+
         raise
 
     finally:
