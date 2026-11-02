@@ -203,6 +203,10 @@ def process_pitch_deck(pdf_path, startup_id):
     connection = get_db_connection()
     cursor = connection.cursor(dictionary=True)
 
+    # Tracked so ChromaDB can be cleaned up if the MySQL commit fails.
+    collection = None
+    ids = []
+
     try:
         cursor.execute(
             """
@@ -261,7 +265,6 @@ def process_pitch_deck(pdf_path, startup_id):
         collection = get_collection()
 
         documents = []
-        ids = []
         metadatas = []
 
         upload_id = uuid.uuid4().hex
@@ -308,6 +311,14 @@ def process_pitch_deck(pdf_path, startup_id):
 
     except Exception:
         connection.rollback()
+
+        # MySQL was rolled back, so remove any chunks already written to
+        # ChromaDB; otherwise they would be orphaned with no deck row.
+        if collection is not None and ids:
+            try:
+                collection.delete(ids=ids)
+            except Exception as cleanup_error:
+                print("ChromaDB cleanup failed:", cleanup_error)
 
         raise
 
