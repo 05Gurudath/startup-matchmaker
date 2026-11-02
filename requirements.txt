@@ -1,0 +1,16 @@
+# Backend (FastAPI + MySQL + ChromaDB)
+fastapi
+uvicorn[standard]
+python-multipart        # required by FastAPI for file uploads
+pydantic
+mysql-connector-python
+python-dotenv
+PyJWT
+pwdlib[argon2]
+
+# Pitch deck processing (PDF -> OCR -> chunks -> embeddings)
+pymupdf
+pytesseract
+Pillow
+chromadb
+sentence-transformers
