@@ -1,4 +1,5 @@
 
+import os
 import re
 import uuid
 import io
@@ -9,8 +10,11 @@ import pytesseract
 from PIL import Image
 import chromadb
 from chromadb.utils import embedding_functions
+from dotenv import load_dotenv
 
 from backend.database import get_db_connection
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -18,9 +22,16 @@ CHROMA_DIR = BASE_DIR / "chroma_db"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+# Tesseract location: set TESSERACT_CMD in .env to override. On Windows we
+# fall back to the default install path; elsewhere the PATH is used.
+_tesseract_cmd = os.getenv("TESSERACT_CMD")
+
+if _tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+elif os.name == "nt":
+    pytesseract.pytesseract.tesseract_cmd = (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
 
 CHUNK_SIZE = 120
 CHUNK_OVERLAP = 25
@@ -175,9 +186,26 @@ def get_collection():
     )
 
 
+def get_next_version(cursor, startup_id):
+    """Return v1.0 for a startup's first deck, v2.0 for the second, etc."""
+    cursor.execute(
+        "SELECT COUNT(*) AS total FROM pitch_decks WHERE startup_id = %s",
+        (startup_id,)
+    )
+
+    row = cursor.fetchone()
+    total = row["total"] if isinstance(row, dict) else row[0]
+
+    return f"v{total + 1}.0"
+
+
 def process_pitch_deck(pdf_path, startup_id):
     connection = get_db_connection()
     cursor = connection.cursor(dictionary=True)
+
+    # Tracked so ChromaDB can be cleaned up if the MySQL commit fails.
+    collection = None
+    ids = []
 
     try:
         cursor.execute(
@@ -214,6 +242,8 @@ def process_pitch_deck(pdf_path, startup_id):
         file_path = Path(pdf_path)
         file_name = file_path.name
 
+        version = get_next_version(cursor, startup_id)
+
         cursor.execute(
             """
             INSERT INTO pitch_decks
@@ -225,7 +255,7 @@ def process_pitch_deck(pdf_path, startup_id):
                 startup_id,
                 file_name,
                 "PDF",
-                "v1.0",
+                version,
                 "Analyzed"
             )
         )
@@ -235,7 +265,6 @@ def process_pitch_deck(pdf_path, startup_id):
         collection = get_collection()
 
         documents = []
-        ids = []
         metadatas = []
 
         upload_id = uuid.uuid4().hex
@@ -282,6 +311,15 @@ def process_pitch_deck(pdf_path, startup_id):
 
     except Exception:
         connection.rollback()
+
+        # MySQL was rolled back, so remove any chunks already written to
+        # ChromaDB; otherwise they would be orphaned with no deck row.
+        if collection is not None and ids:
+            try:
+                collection.delete(ids=ids)
+            except Exception as cleanup_error:
+                print("ChromaDB cleanup failed:", cleanup_error)
+
         raise
 
     finally:
