@@ -1,4 +1,5 @@
 
+import os
 import re
 import uuid
 import io
@@ -9,8 +10,11 @@ import pytesseract
 from PIL import Image
 import chromadb
 from chromadb.utils import embedding_functions
+from dotenv import load_dotenv
 
 from backend.database import get_db_connection
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -18,9 +22,16 @@ CHROMA_DIR = BASE_DIR / "chroma_db"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+# Tesseract location: set TESSERACT_CMD in .env to override. On Windows we
+# fall back to the default install path; elsewhere the PATH is used.
+_tesseract_cmd = os.getenv("TESSERACT_CMD")
+
+if _tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+elif os.name == "nt":
+    pytesseract.pytesseract.tesseract_cmd = (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
 
 CHUNK_SIZE = 120
 CHUNK_OVERLAP = 25

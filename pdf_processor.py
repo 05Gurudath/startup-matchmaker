@@ -1,13 +1,25 @@
 
+import io
+import os
+from pathlib import Path
+
 import pymupdf
 import pytesseract
+from dotenv import load_dotenv
 from PIL import Image
-from pathlib import Path
-import io
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+load_dotenv()
+
+# Tesseract location: set TESSERACT_CMD in .env to override. On Windows we
+# fall back to the default install path; elsewhere the PATH is used.
+_tesseract_cmd = os.getenv("TESSERACT_CMD")
+
+if _tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+elif os.name == "nt":
+    pytesseract.pytesseract.tesseract_cmd = (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
 
 base_dir = Path(__file__).resolve().parent
 pdf_path = base_dir / "sample_pdfs" / "sample_pitch_deck.pdf"
