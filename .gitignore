@@ -24,5 +24,12 @@ dist/
 build/
 *.log
 
-# Editor files
+# Editor and OS files
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Misc
+.pytest_cache/
+*.tsbuildinfo
